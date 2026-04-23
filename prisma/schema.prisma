@@ -1,0 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Wish {
+  id          String   @id @default(cuid())
+  category    String   
+  description String
+  link        String?  
+  isVisited   Boolean  @default(false) 
+  createdAt   DateTime @default(now()) 
+}
