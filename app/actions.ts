@@ -44,21 +44,34 @@ export async function markAsVisited(id: string) {
   revalidatePath('/')
 }
 
-// 新增：更新評分功能
-export async function updateRating(id: string, rating: number) {
-  await getUserId() // 確保有登入先可以評分
-  await prisma.wish.update({ 
-    where: { id }, 
-    data: { rating } 
+export async function updateRating(wishId: string, score: number, comment?: string) {
+  const userId = await getUserId()
+  await prisma.rating.upsert({
+    where: {
+      wishId_userId: { wishId, userId },
+    },
+    update: { 
+      score, 
+      comment: comment ?? undefined // 如果有傳入就更新，無就保持原狀
+    },
+    create: { 
+      wishId, 
+      userId, 
+      score, 
+      comment: comment ?? "" 
+    },
   })
+  revalidatePath('/')
 }
 
-// 修改：復原為未去 (順便清空埋評分)
+// 修改：復原為未去 (順便鏟走所有人對呢個項目嘅評分)
 export async function unmarkAsVisited(id: string) {
   await getUserId()
   await prisma.wish.update({ 
     where: { id }, 
-    data: { isVisited: false, rating: null } // rating 變返 null
+    data: { isVisited: false } 
   })
+  // 刪除呢個項目嘅所有評分
+  await prisma.rating.deleteMany({ where: { wishId: id } })
   revalidatePath('/')
 }

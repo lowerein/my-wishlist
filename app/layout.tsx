@@ -2,13 +2,13 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { ThemeProvider } from './components/ThemeProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
-// 👇 就係改呢度 👇
 export const metadata: Metadata = {
-  title: '⭐98 98 98 List⭐',
-  description: '記錄低我想去食買玩嘅地方', // 你可以順便改埋個描述，對 SEO 有幫助
+  title: '⭐玉桂狗與姆明的98 List (CM98)⭐', // <--- 改咗呢度
+  description: '記錄低我想去食買玩嘅地方',
 }
 
 export default function RootLayout({
@@ -17,8 +17,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    // suppressHydrationWarning 係 next-themes 官方要求加嘅，防止 React 報錯
+    <html lang="en" suppressHydrationWarning> 
+      <body className={`${inter.className} bg-gray-50 dark:bg-gray-950 text-black dark:text-gray-100 transition-colors duration-300`}>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

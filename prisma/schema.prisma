@@ -44,26 +44,35 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
-  wishes        Wish[]    // 關聯到 Wishlist
+  wishes        Wish[]    
+  ratings       Rating[]  // <--- 新增：關聯使用者的所有評分
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// --- 你原本嘅 Wish Model (加咗 userId 關聯) ---
 model Wish {
   id          String   @id @default(cuid())
   category    String   
   description String
   link        String?  
   isVisited   Boolean  @default(false) 
-  rating      Int?     // <--- 新增呢行：評分 (1-5)
+  // 刪除咗 rating Int?
   createdAt   DateTime @default(now()) 
+  
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ratings     Rating[] // <--- 新增：關聯呢個項目的所有評分
+}
+
+// 新增呢個獨立的 Rating 資料表
+model Rating {
+  id        String   @id @default(cuid())
+  score     Int
+  wishId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  wish      Wish     @relation(fields: [wishId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 確保每個人對同一個項目只可以評一次分
+  @@unique([wishId, userId])
 }
