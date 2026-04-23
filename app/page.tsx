@@ -21,12 +21,12 @@ export default async function Home({
         <div className="absolute top-4 right-4">
           <ThemeToggle />
         </div>
-<h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-center">
-          ⭐玉桂狗與姆明的98 List (CM98)⭐
+        <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-center">
+          ⭐98 List⭐
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mb-8 text-center max-w-md">
-          呢度係你專屬嘅
-          Wishlist！記低你想去食買玩嘅地方，完成之後仲可以打卡記錄。
+          呢度係我地專屬嘅
+          Wishlist！記低我地想去食買玩嘅地方，完成之後仲可以打卡記錄。
         </p>
         <LoginButton />
       </main>
@@ -91,7 +91,9 @@ export default async function Home({
         </div>
       </div>
 
-      <h1 className="text-3xl font-bold mb-6 text-center">⭐98 98 98 List⭐</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-center">
+        ⭐98 List⭐
+      </h1>
 
       {/* 新增項目表單 */}
       <div className="bg-white dark:bg-gray-900 p-5 md:p-6 rounded-lg shadow-md mb-6 border border-gray-100 dark:border-gray-800">

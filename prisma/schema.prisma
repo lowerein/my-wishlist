@@ -8,7 +8,8 @@ datasource db {
   provider = "postgresql"
 }
 
-// --- 以下係 NextAuth 必備嘅 Models ---
+// --- NextAuth 必備模型 ---
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -45,8 +46,18 @@ model User {
   accounts      Account[]
   sessions      Session[]
   wishes        Wish[]    
-  ratings       Rating[]  // <--- 新增：關聯使用者的所有評分
+  ratings       Rating[]  
 }
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- 應用程式自訂模型 ---
 
 model Wish {
   id          String   @id @default(cuid())
@@ -54,18 +65,17 @@ model Wish {
   description String
   link        String?  
   isVisited   Boolean  @default(false) 
-  // 刪除咗 rating Int?
   createdAt   DateTime @default(now()) 
   
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ratings     Rating[] // <--- 新增：關聯呢個項目的所有評分
+  ratings     Rating[] 
 }
 
-// 新增呢個獨立的 Rating 資料表
 model Rating {
   id        String   @id @default(cuid())
   score     Int
+  comment   String?  @db.Text
   wishId    String
   userId    String
   createdAt DateTime @default(now())
@@ -73,6 +83,5 @@ model Rating {
   wish      Wish     @relation(fields: [wishId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // 確保每個人對同一個項目只可以評一次分
   @@unique([wishId, userId])
 }
