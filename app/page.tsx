@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from './lib/auth'
 import { LoginButton, LogoutButton } from './components/AuthButtons'
+import StarRating from './components/StarRating'
 
 export default async function Home({
   searchParams,
@@ -166,6 +167,10 @@ const wishes = await prisma.wish.findMany({
                 {wish.description}
                 {wish.isVisited && <span className="ml-2 text-green-600 text-sm no-underline inline-block">✅ 大家去咗啦</span>}
               </h3>
+
+              {wish.isVisited && (
+                <StarRating wishId={wish.id} initialRating={wish.rating} />
+              )}
               
               {wish.link && (
                 <a href={wish.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline block mt-2 truncate">

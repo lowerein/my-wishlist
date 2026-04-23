@@ -62,9 +62,8 @@ model Wish {
   description String
   link        String?  
   isVisited   Boolean  @default(false) 
+  rating      Int?     // <--- 新增呢行：評分 (1-5)
   createdAt   DateTime @default(now()) 
-  
-  // 綁定呢個 Wish 屬於邊個 User
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

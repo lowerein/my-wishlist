@@ -44,9 +44,21 @@ export async function markAsVisited(id: string) {
   revalidatePath('/')
 }
 
-// 復原：放寬權限，任何人都可以復原
+// 新增：更新評分功能
+export async function updateRating(id: string, rating: number) {
+  await getUserId() // 確保有登入先可以評分
+  await prisma.wish.update({ 
+    where: { id }, 
+    data: { rating } 
+  })
+}
+
+// 修改：復原為未去 (順便清空埋評分)
 export async function unmarkAsVisited(id: string) {
-  await getUserId() // 確保有登入就得
-  await prisma.wish.update({ where: { id }, data: { isVisited: false } })
+  await getUserId()
+  await prisma.wish.update({ 
+    where: { id }, 
+    data: { isVisited: false, rating: null } // rating 變返 null
+  })
   revalidatePath('/')
 }
