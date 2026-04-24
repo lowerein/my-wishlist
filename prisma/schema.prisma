@@ -43,19 +43,20 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  
+  // 系統權限
+  isAdmin       Boolean   @default(false) 
+  isAllowed     Boolean   @default(true)  
+  
+  // 關聯設定
   accounts      Account[]
   sessions      Session[]
   wishes        Wish[]    
   ratings       Rating[]  
-  isAdmin       Boolean   @default(false) // 是否為管理員
-  isAllowed     Boolean   @default(true)  // 是否獲准進入系統
-}
 
-model SystemConfig {
-  id           Int      @id @default(1)
-  siteTitle    String   @default("CM98 List")
-  browserTitle String   @default("CM98 List") // <--- 新增呢行
-  categories   String   @default("Food,Entertainment,Other")
+  // 多清單 (Multi-List) 關聯
+  ownedLists    List[]    @relation("ListOwner")   // 自己建立嘅 Lists
+  memberOf      List[]    @relation("ListMembers") // 有權限進入嘅 Lists (被邀請)
 }
 
 model VerificationToken {
@@ -66,7 +67,32 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// --- 應用程式自訂模型 ---
+// --- 系統設定 ---
+
+model SystemConfig {
+  id           Int      @id @default(1)
+  siteTitle    String   @default("CM98 List")
+  browserTitle String   @default("CM98 List")
+  categories   String   @default("Food,Entertainment,Other")
+}
+
+// --- 多清單系統模型 (Multi-tenant) ---
+
+model List {
+  id          String   @id @default(cuid())
+  title       String   
+  description String?
+  categories  String   @default("Food,Entertainment,Other") 
+  createdAt   DateTime @default(now())
+
+  ownerId     String
+  owner       User     @relation("ListOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  members     User[]   @relation("ListMembers") // 呢個 List 允許入嚟嘅 Users
+  wishes      Wish[]                            // 呢個 List 裡面嘅 Items
+}
+
+// --- 應用程式自訂模型 (Wishlist Items & Ratings) ---
 
 model Wish {
   id          String   @id @default(cuid())
@@ -74,9 +100,14 @@ model Wish {
   description String
   link        String?  
   isVisited   Boolean  @default(false) 
-  isPrivate   Boolean  @default(false) // <--- 新增：預設為公開 (false)
+  isPrivate   Boolean  @default(false) 
   createdAt   DateTime @default(now()) 
   
+  // 每一個項目都必須歸屬一個 List
+  listId      String
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  // 記錄係邊個 User 加嘅
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   ratings     Rating[] 

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from './lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from './lib/auth'
+import { redirect } from 'next/navigation' // 記得 import redirect
 
 // 輔助函數：檢查登入狀態並回傳 User ID
 async function getUserId() {
@@ -13,23 +14,53 @@ async function getUserId() {
   return session.user.id
 }
 
-// 1. 新增項目
+// app/actions.ts
+
+// 1. 修改 addWish (加入 listId 讀取)
 export async function addWish(formData: FormData) {
-  const userId = await getUserId()
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
   const description = formData.get('description') as string
   const category = formData.get('category') as string
   const link = formData.get('link') as string
-  const isPrivate = formData.get('isPrivate') === 'on' // <--- 讀取 Checkbox
+  const isPrivate = formData.get('isPrivate') === 'on'
+  const listId = formData.get('listId') as string // <--- 新增：讀取隱藏嘅 listId
 
   await prisma.wish.create({
     data: {
       description,
       category,
       link,
-      isPrivate, // <--- 寫入 Database
-      userId,
+      isPrivate,
+      userId: session.user.id,
+      listId, // <--- 寫入資料庫
     },
   })
+  revalidatePath(`/list/${listId}`) // <--- 刷新當前 List 頁面
+}
+
+// 2. 全新功能：建立新清單 (Create List)
+export async function createList(formData: FormData) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const title = formData.get('title') as string
+  const description = formData.get('description') as string
+
+  // 建立新清單
+  const newList = await prisma.list.create({
+    data: {
+      title,
+      description,
+      ownerId: session.user.id,
+      // 自動將自己加埋入 members 名單
+      members: {
+        connect: { id: session.user.id }
+      }
+    }
+  })
+
   revalidatePath('/')
 }
 
@@ -122,16 +153,25 @@ async function verifyAdmin() {
 }
 
 // 1. 更新系統設定 (標題 & 類別)
-export async function updateSystemConfig(siteTitle: string, browserTitle: string, categories: string) {
-  await verifyAdmin()
+// app/actions.ts入面嘅 updateSystemConfig 函數
+export async function updateSystemConfig(siteTitle: string, browserTitle: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) throw new Error("未登入")
+
+  // 檢查權限
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } })
+  const adminEmails = process.env.ADMIN_EMAILS?.split(',') || []
+  const isAdmin = dbUser?.isAdmin || adminEmails.includes(session.user.email)
+
+  if (!isAdmin) throw new Error("權限不足")
 
   await prisma.systemConfig.upsert({
     where: { id: 1 },
-    update: { siteTitle, browserTitle, categories },
-    create: { id: 1, siteTitle, browserTitle, categories }
+    update: { siteTitle, browserTitle },
+    create: { id: 1, siteTitle, browserTitle }
   })
-  revalidatePath('/')
-  revalidatePath('/admin')
+  
+  revalidatePath('/', 'layout') // 刷新全站
 }
 
 // 2. 切換用戶權限 (允許/禁止進入)
@@ -156,4 +196,115 @@ export async function toggleAdminStatus(targetUserId: string) {
     data: { isAdmin: !target?.isAdmin }
   })
   revalidatePath('/admin')
+}
+
+// --- 獨立清單管理員功能 ---
+export async function updateListSettings(formData: FormData) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const listId = formData.get('listId') as string
+  const title = formData.get('title') as string
+  const description = formData.get('description') as string
+  const categories = formData.get('categories') as string
+
+  // 保安檢查：確保修改者係呢個 List 嘅 Owner
+  const list = await prisma.list.findUnique({ where: { id: listId } })
+  if (!list || list.ownerId !== session.user.id) {
+    throw new Error("只有清單擁有者可以修改設定")
+  }
+
+  // 更新 List 資料
+  await prisma.list.update({
+    where: { id: listId },
+    data: { title, description, categories }
+  })
+
+  // 刷新頁面 (連大廳都要刷新，因為標題可能改咗)
+  revalidatePath(`/list/${listId}`)
+  revalidatePath('/')
+}
+
+// app/actions.ts
+
+// 1. 透過 Email 邀請成員 (改為接收 FormData)
+export async function addMemberByEmail(formData: FormData) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const listId = formData.get('listId') as string
+  const email = formData.get('email') as string
+
+  // 檢查權限：只有 Owner 可以加人
+  const list = await prisma.list.findUnique({ 
+    where: { id: listId },
+    select: { ownerId: true } 
+  })
+  if (list?.ownerId !== session.user.id) throw new Error("權限不足")
+
+  // 搵出目標 User
+  const targetUser = await prisma.user.findUnique({ where: { email } })
+  if (!targetUser) throw new Error("找不到此用戶，請確保對方已登入過本系統")
+
+  // 加入成員
+  await prisma.list.update({
+    where: { id: listId },
+    data: {
+      members: {
+        connect: { id: targetUser.id }
+      }
+    }
+  })
+
+  revalidatePath(`/list/${listId}`)
+}
+
+// 2. 移除成員
+export async function removeMember(listId: string, userId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const list = await prisma.list.findUnique({ 
+    where: { id: listId },
+    select: { ownerId: true } 
+  })
+  if (list?.ownerId !== session.user.id) throw new Error("權限不足")
+
+  await prisma.list.update({
+    where: { id: listId },
+    data: {
+      members: {
+        disconnect: { id: userId }
+      }
+    }
+  })
+
+  revalidatePath(`/list/${listId}`)
+}
+
+export async function deleteList(listId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  // 1. 搵出目標 List
+  const list = await prisma.list.findUnique({ where: { id: listId } })
+  if (!list) return
+
+  // 2. 檢查權限 (必須係 Owner 或者係 Global Admin)
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } })
+  const adminEmails = process.env.ADMIN_EMAILS?.split(',') || []
+  const isGlobalAdmin = dbUser?.isAdmin || (session.user.email ? adminEmails.includes(session.user.email) : false)
+
+  if (list.ownerId !== session.user.id && !isGlobalAdmin) {
+    throw new Error("只有擁有者或系統管理員可以刪除清單")
+  }
+
+  // 3. 執行刪除 (Prisma schema 設有 Cascade，所以裡面的 Wish 同 Rating 會一併刪除)
+  await prisma.list.delete({
+    where: { id: listId }
+  })
+
+  // 4. 刷新並導向
+  revalidatePath('/')
+  redirect('/') // 刪除後自動返大廳
 }
