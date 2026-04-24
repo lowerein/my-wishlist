@@ -57,6 +57,7 @@ model User {
   // 多清單 (Multi-List) 關聯
   ownedLists    List[]    @relation("ListOwner")   // 自己建立嘅 Lists
   memberOf      List[]    @relation("ListMembers") // 有權限進入嘅 Lists (被邀請)
+  adminOf       List[]    @relation("ListAdmins")
 }
 
 model VerificationToken {
@@ -89,6 +90,7 @@ model List {
   owner       User     @relation("ListOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   
   members     User[]   @relation("ListMembers") // 呢個 List 允許入嚟嘅 Users
+  admins        User[]    @relation("ListAdmins")
   wishes      Wish[]                            // 呢個 List 裡面嘅 Items
 }
 
@@ -98,6 +100,7 @@ model Wish {
   id          String   @id @default(cuid())
   category    String   
   description String
+  notes       String?
   link        String?  
   isVisited   Boolean  @default(false) 
   isPrivate   Boolean  @default(false) 

@@ -12,7 +12,8 @@ import {
   toggleAdminStatus,
   deleteList,
 } from "./actions";
-import DeleteConfirmButton from './components/DeleteConfirmButton'
+
+import DeleteConfirmButton from "./components/DeleteConfirmButton";
 
 // 動態生成大廳頁面嘅瀏覽器標題 (Browser Tab)
 export async function generateMetadata() {
@@ -160,31 +161,48 @@ export default async function Dashboard() {
 
           {/* 現有清單列表 */}
           {uniqueLists.map((list) => (
-            <Link key={list.id} href={`/list/${list.id}`} className="group">
-              <div className="p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 h-full flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group-hover:border-blue-400">
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <h2 className="text-xl font-bold group-hover:text-blue-600 transition-colors">
-                      {list.title}
-                    </h2>
-                    <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-500">
-                      {list.ownerId === session.user.id
-                        ? "👑 擁有者"
-                        : "👥 成員"}
+            <div key={list.id} className="relative group">
+              {/* 1. 清單卡片連結 */}
+              <Link href={`/list/${list.id}`}>
+                <div className="p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 h-full flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group-hover:border-blue-400">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <h2 className="text-xl font-bold group-hover:text-blue-600 transition-colors pr-2">
+                        {list.title}
+                      </h2>
+                      <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-500 whitespace-nowrap">
+                        {list.ownerId === session.user.id
+                          ? "👑 擁有者"
+                          : "👥 成員"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                      {list.description || "未有描述"}
+                    </p>
+                  </div>
+
+                  {/* 底部區域：左邊係進入，右邊留空位畀刪除掣 */}
+                  <div className="mt-6 flex items-center text-blue-500 font-bold text-sm">
+                    進入清單{" "}
+                    <span className="ml-1 group-hover:ml-3 transition-all">
+                      →
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                    {list.description || "未有描述"}
-                  </p>
                 </div>
-                <div className="mt-6 flex items-center text-blue-500 font-bold text-sm">
-                  進入清單{" "}
-                  <span className="ml-1 group-hover:ml-3 transition-all">
-                    →
-                  </span>
+              </Link>
+
+              {/* 2. 刪除掣 (放置於右下角) */}
+              {list.ownerId === session.user.id && (
+                <div className="absolute bottom-5 right-5 z-10">
+                  <form action={deleteList.bind(null, list.id)}>
+                    <DeleteConfirmButton
+                      label="🗑️ 刪除"
+                      className="text-xs text-gray-400 hover:text-red-600 bg-white/50 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
+                    />
+                  </form>
                 </div>
-              </div>
-            </Link>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -366,14 +384,14 @@ export default async function Dashboard() {
                               timeZone: "Asia/Hong_Kong",
                             })}
                           </td>
-<td className="py-3 px-4">
-        <form action={deleteList.bind(null, list.id)}>
-          <DeleteConfirmButton 
-            label="刪除清單" 
-            className="text-[10px] font-bold text-red-500 hover:underline" 
-          />
-        </form>
-      </td>
+                          <td className="py-3 px-4">
+                            <form action={deleteList.bind(null, list.id)}>
+                              <DeleteConfirmButton
+                                label="刪除清單"
+                                className="text-[10px] font-bold text-red-500 hover:underline"
+                              />
+                            </form>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

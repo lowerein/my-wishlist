@@ -9,6 +9,7 @@ import {
   updateListSettings,
   addMemberByEmail,
   removeMember,
+  toggleListAdmin,
   deleteList,
 } from "../../actions";
 import Link from "next/link";
@@ -18,7 +19,8 @@ import { LogoutButton } from "../../components/AuthButtons";
 import StarRating from "../../components/StarRating";
 import ThemeToggle from "../../components/ThemeToggle";
 import { redirect } from "next/navigation";
-import DeleteConfirmButton from '../../components/DeleteConfirmButton'
+import DeleteConfirmButton from "../../components/DeleteConfirmButton";
+import EditWishForm from "../../components/EditWishForm";
 
 // 👇 加入呢段：動態生成清單頁面嘅瀏覽器標題 👇
 export async function generateMetadata({
@@ -81,12 +83,17 @@ export default async function ListPage({
 
   const currentList = await prisma.list.findUnique({
     where: { id: listId },
-    include: { owner: true, members: true },
+    include: { owner: true, members: true, admins: true },
   });
 
   if (!currentList) {
     return <main className="p-8 text-center text-red-500">找不到此清單！</main>;
   }
+
+  // 👇 新增呢三行計算目前 User 權限 👇
+  const isOwner = currentList.ownerId === session.user.id;
+  const isListAdmin = currentList.admins.some((a) => a.id === session.user.id);
+  const hasAdminAccess = isOwner || isListAdmin;
 
   // 3. 處理篩選條件
   const currentPage = Number(urlParams.page) || 1;
@@ -200,7 +207,7 @@ export default async function ListPage({
       </div>
 
       {/* ⚙️ 清單管理設定 (只限擁有者) */}
-      {currentList.ownerId === session.user.id && (
+      {hasAdminAccess && (
         <details className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-md mb-8 border border-purple-200 dark:border-purple-900/50 group">
           <summary className="font-bold text-purple-700 dark:text-purple-400 cursor-pointer list-none flex justify-between items-center">
             <span className="flex items-center gap-2">
@@ -215,43 +222,52 @@ export default async function ListPage({
           </summary>
 
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-8">
-{/* 部分 A：基本資料修改 (加回清單描述) */}
+            {/* 部分 A：基本資料修改 (加回清單描述) */}
             <form action={updateListSettings} className="space-y-4">
               <input type="hidden" name="listId" value={listId} />
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">清單名稱</label>
-                  <input 
-                    name="title" 
-                    defaultValue={currentList.title} 
-                    required 
-                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    清單名稱
+                  </label>
+                  <input
+                    name="title"
+                    defaultValue={currentList.title}
+                    required
+                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">專屬分類 (逗號隔開)</label>
-                  <input 
-                    name="categories" 
-                    defaultValue={currentList.categories} 
-                    required 
-                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    專屬分類 (逗號隔開)
+                  </label>
+                  <input
+                    name="categories"
+                    defaultValue={currentList.categories}
+                    required
+                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm"
                   />
                 </div>
               </div>
 
               {/* 👇 加返呢個描述欄位 👇 */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">清單描述</label>
-                <input 
-                  name="description" 
-                  defaultValue={currentList.description || ''} 
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                  清單描述
+                </label>
+                <input
+                  name="description"
+                  defaultValue={currentList.description || ""}
                   placeholder="簡單描述此清單用途..."
-                  className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
+                  className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm"
                 />
               </div>
 
-              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-bold text-sm transition shadow-md">
+              <button
+                type="submit"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-bold text-sm transition shadow-md"
+              >
                 💾 儲存基本設定
               </button>
             </form>
@@ -306,43 +322,72 @@ export default async function ListPage({
                 </div>
 
                 {/* 顯示 Members */}
-                {currentList.members.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex justify-between items-center p-2 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800"
-                  >
-                    <div className="flex items-center gap-2">
-                      {member.image && (
-                        <img
-                          src={member.image}
-                          className="w-6 h-6 rounded-full"
-                        />
-                      )}
-                      <span className="text-sm">{member.name}</span>
+                {currentList.members.map((member) => {
+                  const isThisMemberAdmin = currentList.admins.some(
+                    (a) => a.id === member.id,
+                  );
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex justify-between items-center p-2 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800"
+                    >
+                      <div className="flex items-center gap-2">
+                        {member.image && (
+                          <img
+                            src={member.image}
+                            className="w-6 h-6 rounded-full"
+                          />
+                        )}
+                        <span className="text-sm font-medium">
+                          {member.name}
+                        </span>
+                        {/* 顯示 Admin Badge */}
+                        {isThisMemberAdmin && (
+                          <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
+                            管理員
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 操作區 */}
+                      <div className="flex items-center gap-3">
+                        <form
+                          action={toggleListAdmin.bind(null, listId, member.id)}
+                        >
+                          <button className="text-[10px] text-blue-500 hover:underline font-bold transition">
+                            {isThisMemberAdmin ? "降為成員" : "升為管理員"}
+                          </button>
+                        </form>
+                        <form
+                          action={removeMember.bind(null, listId, member.id)}
+                        >
+                          <button className="text-[10px] text-red-500 hover:underline font-bold transition">
+                            移除成員
+                          </button>
+                        </form>
+                      </div>
                     </div>
-                    {/* 踢人掣 */}
-                    <form action={removeMember.bind(null, listId, member.id)}>
-                      <button className="text-[10px] text-red-500 hover:underline font-bold">
-                        移除成員
-                      </button>
-                    </form>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-{/* 👇 修正後嘅危險區域 👇 */}
-      <div className="pt-6 border-t border-red-100 dark:border-red-900/30">
-        <h3 className="text-sm font-bold text-red-600 mb-2">⚠️ 危險區域</h3>
-        <p className="text-xs text-gray-500 mb-4">刪除清單後，所有項目及評分將會永久消失，無法還原。</p>
-        
-        <form action={deleteList.bind(null, listId)}>
-          <DeleteConfirmButton 
-            label="永久刪除此清單" 
-            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white px-4 py-2 rounded-md font-bold text-sm transition" 
-          />
-        </form>
-      </div>
+            {/* 👇 修正後嘅危險區域 👇 */}
+            <div className="pt-6 border-t border-red-100 dark:border-red-900/30">
+              <h3 className="text-sm font-bold text-red-600 mb-2">
+                ⚠️ 危險區域
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                刪除清單後，所有項目及評分將會永久消失，無法還原。
+              </p>
+
+              <form action={deleteList.bind(null, listId)}>
+                <DeleteConfirmButton
+                  label="永久刪除此清單"
+                  className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white px-4 py-2 rounded-md font-bold text-sm transition"
+                />
+              </form>
+            </div>
           </div>
         </details>
       )}
@@ -371,6 +416,14 @@ export default async function ListPage({
               placeholder="想去邊度？"
             />
           </div>
+
+          <textarea
+            name="notes"
+            placeholder="詳細描述/備註 (Optional)..."
+            rows={2}
+            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 dark:text-white text-sm"
+          />
+
           <input
             type="url"
             name="link"
@@ -541,6 +594,13 @@ export default async function ListPage({
                   </span>
                 )}
               </h3>
+
+              {wish.notes && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">
+                  {wish.notes}
+                </p>
+              )}
+
               {wish.link && (
                 <a
                   href={wish.link}
@@ -590,6 +650,12 @@ export default async function ListPage({
               )}
               {wish.userId === session.user.id && (
                 <div className="flex sm:flex-col gap-2">
+                  <EditWishForm
+                    wish={wish}
+                    listId={listId}
+                    categoryOptions={categoryOptions}
+                  />
+
                   <form action={togglePrivacy.bind(null, wish.id)}>
                     <button className="w-full text-[12px] bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200">
                       {wish.isPrivate ? "🔓 公開" : "🔒 私人"}
