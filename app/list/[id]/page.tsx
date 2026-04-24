@@ -215,38 +215,44 @@ export default async function ListPage({
           </summary>
 
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-8">
-            {/* 部分 A：基本資料修改 */}
+{/* 部分 A：基本資料修改 (加回清單描述) */}
             <form action={updateListSettings} className="space-y-4">
               <input type="hidden" name="listId" value={listId} />
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    清單名稱
-                  </label>
-                  <input
-                    name="title"
-                    defaultValue={currentList.title}
-                    required
-                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm"
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">清單名稱</label>
+                  <input 
+                    name="title" 
+                    defaultValue={currentList.title} 
+                    required 
+                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    專屬分類 (逗號隔開)
-                  </label>
-                  <input
-                    name="categories"
-                    defaultValue={currentList.categories}
-                    required
-                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm"
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">專屬分類 (逗號隔開)</label>
+                  <input 
+                    name="categories" 
+                    defaultValue={currentList.categories} 
+                    required 
+                    className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
                   />
                 </div>
               </div>
-              <button
-                type="submit"
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-bold text-sm transition"
-              >
-                儲存基本設定
+
+              {/* 👇 加返呢個描述欄位 👇 */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">清單描述</label>
+                <input 
+                  name="description" 
+                  defaultValue={currentList.description || ''} 
+                  placeholder="簡單描述此清單用途..."
+                  className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-sm" 
+                />
+              </div>
+
+              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-bold text-sm transition shadow-md">
+                💾 儲存基本設定
               </button>
             </form>
 

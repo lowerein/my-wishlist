@@ -195,7 +195,7 @@ export default async function Dashboard() {
       {isAdmin && (
         <div className="mt-16 pt-12 border-t-4 border-gray-100 dark:border-gray-800">
           <h2 className="text-3xl font-extrabold mb-8 flex items-center gap-2">
-            <span>⚙️</span> 超級管理員後台 (Admin Panel)
+            <span>⚙️</span> 管理員後台 (Admin Panel)
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
