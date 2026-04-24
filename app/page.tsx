@@ -1,12 +1,26 @@
 // app/page.tsx
 import { prisma } from "./lib/prisma";
-import { addWish, deleteWish, markAsVisited, unmarkAsVisited } from "./actions";
+import {
+  addWish,
+  deleteWish,
+  markAsVisited,
+  unmarkAsVisited,
+  togglePrivacy,
+} from "./actions";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./lib/auth";
 import { LoginButton, LogoutButton } from "./components/AuthButtons";
 import StarRating from "./components/StarRating";
 import ThemeToggle from "./components/ThemeToggle";
+
+export async function generateMetadata() {
+  const config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+  return {
+    title: config?.browserTitle || "CM98 List",
+    // 你之前整嘅玉桂狗 favicon 已經喺 app/icon.png 度，Next.js 會自動 handle
+  }
+}
 
 export default async function Home({
   searchParams,
@@ -15,6 +29,16 @@ export default async function Home({
 }) {
   const session = await getServerSession(authOptions);
 
+  // 1. 讀取系統設定 (標題及類別)
+  const config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+  const siteTitle = config?.siteTitle || "CM98 List";
+  const categoryOptions = config?.categories.split(",") || [
+    "Food",
+    "Entertainment",
+    "Other",
+  ];
+
+  // 未登入畫面
   if (!session?.user) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-950 text-black dark:text-white transition-colors duration-300">
@@ -22,30 +46,70 @@ export default async function Home({
           <ThemeToggle />
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-center">
-          ⭐98 List⭐
+          ⭐{siteTitle}⭐
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mb-8 text-center max-w-md">
-          呢度係我地專屬嘅
-          Wishlist！記低我地想去食買玩嘅地方，完成之後仲可以打卡記錄。
+          歡迎來到共享清單！請先登入以查看及新增項目。
         </p>
         <LoginButton />
       </main>
     );
   }
 
+  // 2. 權限檢查 (封鎖狀態及 Admin 身份)
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+  });
+
+  // 檢查是否被封鎖
+  if (dbUser && !dbUser.isAllowed) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-gray-950 text-black dark:text-white">
+        <div className="bg-white dark:bg-gray-900 p-8 rounded-xl shadow-lg border border-red-200 dark:border-red-900">
+          <h1 className="text-3xl font-bold text-red-500 mb-4">🚫 存取被拒</h1>
+          <p className="mb-6">你已被管理員禁止進入此列表。</p>
+          <LogoutButton />
+        </div>
+      </main>
+    );
+  }
+
+  // 判斷 Admin (ENV + DB)
+  const adminEmails = process.env.ADMIN_EMAILS?.split(",") || [];
+  const isAdmin =
+    dbUser?.isAdmin ||
+    (session.user.email ? adminEmails.includes(session.user.email) : false);
+
+  // 3. 處理 URL 參數
   const params = await searchParams;
   const currentPage = Number(params.page) || 1;
   const pageSize = Number(params.limit) || 20;
   const category = params.category || "all";
   const status = params.status || "all";
   const search = params.search || "";
+  const userFilter = params.user || "all";
 
-  const where: any = {};
+  // 4. 讀取「有加過項目」的 User 用於 Filter
+  const allUsers = await prisma.user.findMany({
+    where: { wishes: { some: {} } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  // 5. 設定資料庫查詢條件 (只看公開或自己的)
+  const where: any = {
+    OR: [{ isPrivate: false }, { userId: session.user.id }],
+  };
+
   if (category !== "all") where.category = category;
   if (status === "visited") where.isVisited = true;
   else if (status === "not-visited") where.isVisited = false;
-  if (search) where.description = { contains: search, mode: "insensitive" };
+  if (userFilter !== "all") where.userId = userFilter;
+  if (search) {
+    where.AND = [{ description: { contains: search, mode: "insensitive" } }];
+  }
 
+  // 6. 抓取資料
   const totalItems = await prisma.wish.count({ where });
   const totalPages = Math.ceil(totalItems / pageSize);
   const wishes = await prisma.wish.findMany({
@@ -55,20 +119,31 @@ export default async function Home({
     orderBy: { createdAt: "desc" },
     include: {
       user: true,
-      ratings: {
-        include: { user: true }, // <--- 抽埋俾分嗰個人嘅頭像同名
-      },
+      ratings: { include: { user: true } },
     },
   });
+
+  // 7. 分頁與 URL 輔助函數
   const buildQueryString = (newPage: number, newLimit?: number) => {
-    return `/?page=${newPage}&limit=${
-      newLimit || pageSize
-    }&category=${category}&status=${status}&search=${search}`;
+    return `/?page=${newPage}&limit=${newLimit || pageSize}&category=${category}&status=${status}&user=${userFilter}&search=${search}`;
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = startPage + maxVisiblePages - 1;
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
   };
 
   return (
     <main className="max-w-4xl mx-auto p-4 md:p-8 text-black dark:text-gray-100 transition-colors duration-300">
-      {/* 頂部 User Info Bar & Theme Toggle */}
+      {/* 頂部工具列 */}
       <div className="flex justify-between items-center bg-white dark:bg-gray-900 p-4 rounded-lg shadow-sm mb-6 border border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-3">
           {session.user.image && (
@@ -80,23 +155,33 @@ export default async function Home({
           )}
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              歡迎返嚟,
+              Hi, {session.user.name}
             </p>
-            <p className="font-bold">{session.user.name}</p>
+            <p className="text-xs font-mono opacity-50">
+              {isAdmin ? "🛡️ Administrator" : "Member"}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-md font-bold transition"
+            >
+              Admin Panel
+            </Link>
+          )}
           <ThemeToggle />
           <LogoutButton />
         </div>
       </div>
 
       <h1 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-        ⭐98 List⭐
+        ⭐ {siteTitle} ⭐
       </h1>
 
-      {/* 新增項目表單 */}
-      <div className="bg-white dark:bg-gray-900 p-5 md:p-6 rounded-lg shadow-md mb-6 border border-gray-100 dark:border-gray-800">
+      {/* 新增項目 Form */}
+      <div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-md mb-8 border border-gray-100 dark:border-gray-800">
         <form action={addWish} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <select
@@ -104,41 +189,54 @@ export default async function Home({
               className="p-2 border border-gray-200 dark:border-gray-700 rounded-md w-full bg-white dark:bg-gray-800 dark:text-white"
               required
             >
-              <option value="Food">🍔 Food</option>
-              <option value="Entertainment">🎬 Entertainment</option>
-              <option value="Other">💡 Other</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat.trim()}>
+                  {cat.trim()}
+                </option>
+              ))}
             </select>
             <input
               type="text"
               name="description"
-              className="p-2 border border-gray-200 dark:border-gray-700 rounded-md w-full bg-white dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+              className="p-2 border border-gray-200 dark:border-gray-700 rounded-md w-full bg-white dark:bg-gray-800 dark:text-white"
               required
-              placeholder="想去邊度/食咩？"
+              placeholder="想去邊度？"
             />
           </div>
           <input
             type="url"
             name="link"
-            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 dark:text-white"
             placeholder="網址 (Optional) https://..."
           />
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              id="isPrivate"
+              name="isPrivate"
+              className="w-4 h-4 rounded border-gray-300 text-blue-600"
+            />
+            <label
+              htmlFor="isPrivate"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              🔒 設為私人項目 (只限自己可見)
+            </label>
+          </div>
           <button
             type="submit"
-            className="w-full bg-blue-600 dark:bg-blue-500 text-white p-3 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition font-bold"
+            className="w-full bg-blue-600 dark:bg-blue-500 text-white p-3 rounded-md hover:bg-blue-700 font-bold transition"
           >
             Add to Wishlist
           </button>
         </form>
       </div>
 
-      {/* 篩選與搜尋列 */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg mb-6 border border-gray-200 dark:border-gray-800">
-        <form
-          method="GET"
-          className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-end w-full"
-        >
-          <div className="w-full sm:flex-1 sm:min-w-[200px]">
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
+      {/* 篩選器 */}
+      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl mb-6 border border-gray-200 dark:border-gray-800">
+        <form method="GET" className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
               Search
             </label>
             <input
@@ -146,233 +244,205 @@ export default async function Home({
               name="search"
               defaultValue={search}
               placeholder="搜尋描述..."
-              className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+              className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800"
             />
           </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
               Category
             </label>
             <select
               name="category"
               defaultValue={category}
-              className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 dark:text-white"
+              className="p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800"
             >
-              <option value="all">All Categories</option>
-              <option value="Food">Food</option>
-              <option value="Entertainment">Entertainment</option>
-              <option value="Other">Other</option>
+              <option value="all">All</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat.trim()}>
+                  {cat.trim()}
+                </option>
+              ))}
             </select>
           </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
-              Status
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+              提供者
             </label>
             <select
-              name="status"
-              defaultValue={status}
-              className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 dark:text-white"
+              name="user"
+              defaultValue={userFilter}
+              className="p-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 max-w-[120px]"
             >
-              <option value="all">All Status</option>
-              <option value="not-visited">未去 (Not Visited)</option>
-              <option value="visited">已去 (Visited)</option>
+              <option value="all">所有人</option>
+              {allUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.id === session.user.id ? "我自己" : u.name?.split(" ")[0]}
+                </option>
+              ))}
             </select>
           </div>
-
-          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="flex gap-2">
             <button
               type="submit"
-              className="flex-1 sm:flex-none bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-md text-sm hover:bg-black dark:hover:bg-gray-600 text-center transition"
+              className="bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-bold transition hover:bg-black"
             >
               Filter
             </button>
             <Link
               href="/"
-              className="flex-1 sm:flex-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-center flex items-center justify-center transition"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-md text-sm transition hover:bg-gray-50"
             >
               Reset
             </Link>
           </div>
-          <input type="hidden" name="limit" value={pageSize} />
         </form>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-4 px-2">
-        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-          總共找到 {totalItems} 個項目
-        </p>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">
-            每頁顯示:
-          </label>
-          {[10, 20, 50].map((num) => (
-            <Link
-              key={num}
-              href={buildQueryString(1, num)}
-              className={`px-3 py-1 text-sm rounded border transition ${
-                pageSize === num
-                  ? "bg-blue-600 dark:bg-blue-500 text-white border-blue-600 dark:border-blue-500"
-                  : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-              }`}
-            >
-              {num}
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* 項目清單 */}
+      {/* 列表渲染 */}
       <div className="space-y-4">
         {wishes.map((wish) => (
           <div
             key={wish.id}
-            className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow flex flex-col sm:flex-row justify-between sm:items-center gap-4 border border-transparent dark:border-gray-800"
+            className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between gap-4 border border-gray-100 dark:border-gray-800"
           >
-            <div className="w-full">
+            <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <span className="inline-block px-2 py-1 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                   {wish.category}
                 </span>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-                  {wish.user?.image ? (
-                    <img
-                      src={wish.user?.image}
-                      alt="avatar"
-                      className="w-4 h-4 rounded-full"
-                    />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                  )}
-                  <span className="text-[10px] text-gray-600 dark:text-gray-400">
-                    {wish.user?.name?.split(" ")[0]} 提供
-                  </span>
-                </div>
-              </div>
-
-              <h3
-                className={`text-lg font-bold leading-tight ${
-                  wish.isVisited
-                    ? "text-gray-400 dark:text-gray-600 line-through"
-                    : ""
-                }`}
-              >
-                {wish.description}
-                {wish.isVisited && (
-                  <span className="ml-2 text-green-600 dark:text-green-500 text-sm no-underline inline-block">
-                    ✅ 大家去咗啦
+                {wish.isPrivate && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-600 text-white rounded-full">
+                    🔒 私人
                   </span>
                 )}
+                <div className="flex items-center gap-1 opacity-60">
+                  {wish.user?.image && (
+                    <img
+                      src={wish.user.image}
+                      className="w-3 h-3 rounded-full"
+                    />
+                  )}
+                  <span className="text-[10px]">{wish.user?.name} 提供</span>
+                </div>
+              </div>
+              <h3
+                className={`text-lg font-bold ${wish.isVisited ? "text-gray-400 line-through" : ""}`}
+              >
+                {wish.description}{" "}
+                {wish.isVisited && (
+                  <span className="ml-1 text-green-500 no-underline">✅</span>
+                )}
               </h3>
-
               {wish.link && (
                 <a
                   href={wish.link}
                   target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 dark:text-blue-400 text-sm hover:underline block mt-2 truncate"
+                  className="text-blue-500 text-xs hover:underline mt-1 inline-block"
                 >
                   查看連結
                 </a>
               )}
-
               {wish.isVisited && (
-                <div className="mt-1">
-                  {wish.isVisited && (
-                    <div className="mt-2">
-                      <StarRating
-                        wishId={wish.id}
-                        ratings={wish.ratings}
-                        currentUserId={session.user.id}
-                      />
-                    </div>
-                  )}
+                <div className="mt-3">
+                  <StarRating
+                    wishId={wish.id}
+                    ratings={wish.ratings}
+                    currentUserId={session.user.id}
+                  />
                 </div>
               )}
-
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                加入日期: {wish.createdAt.toLocaleString("zh-HK")}
+              <p className="text-[10px] text-gray-400 mt-2">
+                加入日期:{" "}
+                {wish.createdAt.toLocaleString("zh-HK", {
+                  timeZone: "Asia/Hong_Kong",
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div className="flex sm:flex-col gap-2 justify-end">
               {wish.isVisited ? (
-                <form
-                  action={unmarkAsVisited.bind(null, wish.id)}
-                  className="flex-1 sm:flex-none"
-                >
-                  <button
-                    type="submit"
-                    className="w-full text-orange-600 dark:text-orange-400 font-bold bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded border border-orange-100 dark:border-orange-800/50 hover:bg-orange-100 dark:hover:bg-orange-900/40 text-sm transition"
-                  >
-                    重設為未去
+                <form action={unmarkAsVisited.bind(null, wish.id)}>
+                  <button className="w-full text-[12px] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded-md border border-orange-100 dark:border-orange-900/50 transition hover:bg-orange-100">
+                    重設未去
                   </button>
                 </form>
               ) : (
-                <form
-                  action={markAsVisited.bind(null, wish.id)}
-                  className="flex-1 sm:flex-none"
-                >
-                  <button
-                    type="submit"
-                    className="w-full text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded border border-green-100 dark:border-green-800/50 hover:bg-green-100 dark:hover:bg-green-900/40 text-sm transition"
-                  >
+                <form action={markAsVisited.bind(null, wish.id)}>
+                  <button className="w-full text-[12px] font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md border border-green-100 dark:border-green-900/50 transition hover:bg-green-100">
                     去咗啦！
                   </button>
                 </form>
               )}
-
               {wish.userId === session.user.id && (
-                <form
-                  action={deleteWish.bind(null, wish.id)}
-                  className="flex-1 sm:flex-none"
-                >
-                  <button
-                    type="submit"
-                    className="w-full text-red-500 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded border border-red-100 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/40 text-sm transition"
-                  >
-                    Delete
-                  </button>
-                </form>
+                <div className="flex gap-2">
+                  <form action={togglePrivacy.bind(null, wish.id)}>
+                    <button className="text-[12px] bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200">
+                      {wish.isPrivate ? "🔓 公開" : "🔒 私人"}
+                    </button>
+                  </form>
+                  <form action={deleteWish.bind(null, wish.id)}>
+                    <button className="text-[12px] bg-red-50 text-red-600 px-3 py-2 rounded-md border border-red-100 transition hover:bg-red-100">
+                      Delete
+                    </button>
+                  </form>
+                </div>
               )}
             </div>
           </div>
         ))}
-        {wishes.length === 0 && (
-          <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">
-              呢度仲係空空如也，快啲加啲嘢落去啦！ 📝
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* 分頁控制 */}
+      {/* 數字分頁控制 */}
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-4 mt-8">
+        <div className="flex justify-center items-center gap-2 mt-12 pb-12">
           <Link
             href={buildQueryString(Math.max(1, currentPage - 1))}
-            className={`px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-sm text-sm transition ${
-              currentPage <= 1
-                ? "pointer-events-none opacity-50"
-                : "hover:bg-gray-50 dark:hover:bg-gray-700"
-            }`}
+            className={`px-3 py-1.5 rounded-md border ${currentPage <= 1 ? "opacity-30 pointer-events-none" : "hover:bg-gray-100"}`}
           >
-            上一頁
+            &laquo;
           </Link>
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {currentPage} / {totalPages}
-          </span>
+          {getPageNumbers()[0] > 1 && (
+            <>
+              <Link
+                href={buildQueryString(1)}
+                className="px-3 py-1.5 rounded-md border"
+              >
+                1
+              </Link>
+              <span className="px-1 text-gray-400">...</span>
+            </>
+          )}
+          {getPageNumbers().map((n) => (
+            <Link
+              key={n}
+              href={buildQueryString(n)}
+              className={`px-3 py-1.5 rounded-md border font-bold ${currentPage === n ? "bg-blue-600 text-white border-blue-600" : "hover:bg-gray-100"}`}
+            >
+              {n}
+            </Link>
+          ))}
+          {getPageNumbers().slice(-1)[0] < totalPages && (
+            <>
+              <span className="px-1 text-gray-400">...</span>
+              <Link
+                href={buildQueryString(totalPages)}
+                className="px-3 py-1.5 rounded-md border"
+              >
+                {totalPages}
+              </Link>
+            </>
+          )}
           <Link
             href={buildQueryString(Math.min(totalPages, currentPage + 1))}
-            className={`px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-sm text-sm transition ${
-              currentPage >= totalPages
-                ? "pointer-events-none opacity-50"
-                : "hover:bg-gray-50 dark:hover:bg-gray-700"
-            }`}
+            className={`px-3 py-1.5 rounded-md border ${currentPage >= totalPages ? "opacity-30 pointer-events-none" : "hover:bg-gray-100"}`}
           >
-            下一頁
+            &raquo;
           </Link>
         </div>
       )}

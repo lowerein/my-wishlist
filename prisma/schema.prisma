@@ -47,6 +47,15 @@ model User {
   sessions      Session[]
   wishes        Wish[]    
   ratings       Rating[]  
+  isAdmin       Boolean   @default(false) // 是否為管理員
+  isAllowed     Boolean   @default(true)  // 是否獲准進入系統
+}
+
+model SystemConfig {
+  id           Int      @id @default(1)
+  siteTitle    String   @default("CM98 List")
+  browserTitle String   @default("CM98 List") // <--- 新增呢行
+  categories   String   @default("Food,Entertainment,Other")
 }
 
 model VerificationToken {
@@ -65,6 +74,7 @@ model Wish {
   description String
   link        String?  
   isVisited   Boolean  @default(false) 
+  isPrivate   Boolean  @default(false) // <--- 新增：預設為公開 (false)
   createdAt   DateTime @default(now()) 
   
   userId      String?
