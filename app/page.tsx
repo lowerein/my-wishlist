@@ -10,9 +10,10 @@ import {
   updateSystemConfig,
   toggleUserAccess,
   toggleAdminStatus,
-  deleteList, leaveList
+  deleteList,
+  leaveList,
 } from "./actions";
-
+import CreateListToggle from "./components/CreateListToggle";
 import DeleteConfirmButton from "./components/DeleteConfirmButton";
 
 // 動態生成大廳頁面嘅瀏覽器標題 (Browser Tab)
@@ -50,7 +51,14 @@ export default async function Dashboard() {
   // 3. 讀取用戶資料與權限
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { ownedLists: true, memberOf: true },
+    include: {
+      ownedLists: {
+        include: { _count: { select: { wishes: true } } }, // 👇 加入數量統計
+      },
+      memberOf: {
+        include: { _count: { select: { wishes: true } } }, // 👇 加入數量統計
+      },
+    },
   });
 
   // 檢查是否被封鎖
@@ -130,35 +138,12 @@ export default async function Dashboard() {
       {/* 區塊 1：一般用戶大廳 (My Wishlists) */}
       {/* ========================================= */}
       <div className="mb-16">
-        <h1 className="text-3xl font-extrabold mb-8 px-2">我的 Wishlists 🗂️</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 px-2 gap-4">
+          <h1 className="text-3xl font-extrabold">我的 Wishlists 🗂️</h1>
+          <CreateListToggle />
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 新增清單 Form */}
-          <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-800">
-            <h2 className="text-lg font-bold mb-4 text-blue-700 dark:text-blue-300">
-              + 建立新清單
-            </h2>
-            <form action={createList} className="space-y-3">
-              <input
-                name="title"
-                required
-                placeholder="清單名稱 (例如: 同事食飯)"
-                className="w-full p-2.5 text-sm rounded-lg border border-blue-100 dark:border-gray-700 bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                name="description"
-                placeholder="簡單描述 (Optional)"
-                className="w-full p-2.5 text-sm rounded-lg border border-blue-100 dark:border-gray-700 bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition shadow-lg shadow-blue-500/20"
-              >
-                立即建立
-              </button>
-            </form>
-          </div>
-
           {/* 現有清單列表 */}
           {uniqueLists.map((list) => (
             <div key={list.id} className="relative group">
@@ -166,22 +151,31 @@ export default async function Dashboard() {
               <Link href={`/list/${list.id}`}>
                 <div className="p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 h-full flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group-hover:border-blue-400">
                   <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <h2 className="text-xl font-bold group-hover:text-blue-600 transition-colors pr-2">
+                    <div className="flex justify-between items-start mb-4">
+                      {/* 左側標題 */}
+                      <h2 className="text-xl font-bold group-hover:text-blue-600 transition-colors pr-2 line-clamp-1">
                         {list.title}
                       </h2>
-                      <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-500 whitespace-nowrap">
-                        {list.ownerId === session.user.id
-                          ? "👑 擁有者"
-                          : "👥 成員"}
-                      </span>
+
+                      {/* 👇 右側標籤組：數量 + 身份 👇 */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* 項目數量 Tag */}
+                        <span className="text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 px-2 py-1 rounded font-bold border border-blue-100 dark:border-blue-800">
+                          {list._count?.wishes || 0} Items
+                        </span>
+                        {/* 身份 Tag */}
+                        <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-500 font-bold border border-gray-200 dark:border-gray-700">
+                          {list.ownerId === session.user.id ? "👑" : "👥"}
+                        </span>
+                      </div>
                     </div>
+
                     <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
                       {list.description || "未有描述"}
                     </p>
                   </div>
 
-                  {/* 底部區域：左邊係進入，右邊留空位畀刪除掣 */}
+                  {/* 底部區域 */}
                   <div className="mt-6 flex items-center text-blue-500 font-bold text-sm">
                     進入清單{" "}
                     <span className="ml-1 group-hover:ml-3 transition-all">
@@ -192,27 +186,27 @@ export default async function Dashboard() {
               </Link>
 
               {/* 2. 刪除掣 (放置於右下角) */}
-<div className="absolute bottom-5 right-5 z-10">
-              {list.ownerId === session.user.id ? (
-                // Owner 見到刪除掣
-                <form action={deleteList.bind(null, list.id)}>
-                  <DeleteConfirmButton 
-                    label="🗑️ 刪除" 
-                    confirmMessage="確定要永久刪除此清單及其所有內容嗎？"
-                    className="text-xs text-gray-400 hover:text-red-600 bg-white/50 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
-                  />
-                </form>
-              ) : (
-                // 成員/Admin 見到離開掣
-                <form action={leaveList.bind(null, list.id)}>
-                  <DeleteConfirmButton 
-                    label="🚪 離開" 
-                    confirmMessage="確定要離開此共享清單嗎？離開後你將無法再看到裡面的內容。"
-                    className="text-xs text-gray-400 hover:text-orange-600 bg-white/50 dark:bg-gray-900/50 hover:bg-orange-50 dark:hover:bg-orange-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
-                  />
-                </form>
-              )}
-            </div>
+              <div className="absolute bottom-5 right-5 z-10">
+                {list.ownerId === session.user.id ? (
+                  // Owner 見到刪除掣
+                  <form action={deleteList.bind(null, list.id)}>
+                    <DeleteConfirmButton
+                      label="🗑️ 刪除"
+                      confirmMessage="確定要永久刪除此清單及其所有內容嗎？"
+                      className="text-xs text-gray-400 hover:text-red-600 bg-white/50 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
+                    />
+                  </form>
+                ) : (
+                  // 成員/Admin 見到離開掣
+                  <form action={leaveList.bind(null, list.id)}>
+                    <DeleteConfirmButton
+                      label="🚪 離開"
+                      confirmMessage="確定要離開此共享清單嗎？離開後你將無法再看到裡面的內容。"
+                      className="text-xs text-gray-400 hover:text-orange-600 bg-white/50 dark:bg-gray-900/50 hover:bg-orange-50 dark:hover:bg-orange-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
+                    />
+                  </form>
+                )}
+              </div>
             </div>
           ))}
         </div>
