@@ -11,6 +11,7 @@ import {
   removeMember,
   toggleListAdmin,
   deleteList,
+  leaveList,
 } from "../../actions";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -90,6 +91,22 @@ export default async function ListPage({
     return <main className="p-8 text-center text-red-500">找不到此清單！</main>;
   }
 
+  // 抽出自己有權限嘅所有 Lists (用嚟做搬移選項)
+  const userWithLists = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: { ownedLists: true, memberOf: true, adminOf: true },
+  });
+
+  const rawUserLists = [
+    ...(userWithLists?.ownedLists || []),
+    ...(userWithLists?.memberOf || []),
+    ...(userWithLists?.adminOf || []),
+  ];
+  // 走棧並準備傳入 Form
+  const allUserLists = Array.from(
+    new Map(rawUserLists.map((l) => [l.id, l])).values(),
+  );
+
   // 👇 新增呢三行計算目前 User 權限 👇
   const isOwner = currentList.ownerId === session.user.id;
   const isListAdmin = currentList.admins.some((a) => a.id === session.user.id);
@@ -161,21 +178,34 @@ export default async function ListPage({
     <main className="max-w-4xl mx-auto p-4 md:p-8 text-black dark:text-gray-100 transition-colors duration-300">
       {/* 頂部工具列 (Header) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm mb-6 border border-gray-100 dark:border-gray-800 gap-4">
-        {/* 左側：返回掣及清單名稱 */}
-        <div className="flex items-center gap-3">
+        {/* 左側：返回掣、清單名稱及離開按鈕 */}
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <Link
             href="/"
-            className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md text-sm font-bold transition"
+            className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md text-sm font-bold transition whitespace-nowrap"
           >
             ← 大廳
           </Link>
-          <div className="border-l pl-3 border-gray-200 dark:border-gray-700">
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-              正在查看
-            </p>
-            <p className="font-extrabold text-lg leading-tight">
-              {currentList.title}
-            </p>
+          <div className="border-l pl-3 border-gray-200 dark:border-gray-700 flex items-center gap-3">
+            <div>
+              <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                正在查看
+              </p>
+              <p className="font-extrabold text-lg leading-tight line-clamp-1">
+                {currentList.title}
+              </p>
+            </div>
+
+            {/* 👇 離開清單掣移咗嚟呢度，縮細少少做 Tag 嘅大細 👇 */}
+            {!isOwner && (
+              <form action={leaveList.bind(null, listId)}>
+                <DeleteConfirmButton
+                  label="🚪 離開"
+                  confirmMessage="確定要離開此清單嗎？"
+                  className="text-[10px] bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:hover:bg-orange-900/40 px-2 py-1 rounded font-bold transition whitespace-nowrap"
+                />
+              </form>
+            )}
           </div>
         </div>
 
@@ -654,6 +684,7 @@ export default async function ListPage({
                     wish={wish}
                     listId={listId}
                     categoryOptions={categoryOptions}
+                    allUserLists={allUserLists} // <--- 加入呢行
                   />
 
                   <form action={togglePrivacy.bind(null, wish.id)}>
@@ -662,9 +693,10 @@ export default async function ListPage({
                     </button>
                   </form>
                   <form action={deleteWish.bind(null, wish.id)}>
-                    <button className="w-full text-[12px] bg-red-50 text-red-600 px-3 py-2 rounded-md border border-red-100 transition hover:bg-red-100">
-                      Delete
-                    </button>
+                    <DeleteConfirmButton
+                      label="Delete"
+                      className="w-full text-[12px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-900/40 px-3 py-2 rounded-md transition"
+                    />
                   </form>
                 </div>
               )}

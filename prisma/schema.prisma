@@ -118,7 +118,7 @@ model Wish {
 
 model Rating {
   id        String   @id @default(cuid())
-  score     Int
+  score     Float
   comment   String?  @db.Text
   wishId    String
   userId    String

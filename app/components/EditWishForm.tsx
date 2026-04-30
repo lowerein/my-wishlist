@@ -3,14 +3,24 @@
 import { useState } from 'react'
 import { updateWish } from '../actions'
 
-export default function EditWishForm({ wish, listId, categoryOptions }: { wish: any, listId: string, categoryOptions: string[] }) {
+export default function EditWishForm({ 
+  wish, 
+  listId, 
+  categoryOptions,
+  allUserLists // <--- 接收新 Prop
+}: { 
+  wish: any, 
+  listId: string, 
+  categoryOptions: string[],
+  allUserLists: any[] 
+}) {
   const [isEditing, setIsEditing] = useState(false)
 
   if (!isEditing) {
     return (
       <button 
         onClick={() => setIsEditing(true)}
-        className="text-[12px] bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200"
+        className="w-full text-[12px] bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200"
       >
         ✏️ 編輯
       </button>
@@ -29,11 +39,23 @@ export default function EditWishForm({ wish, listId, categoryOptions }: { wish: 
           <input type="hidden" name="wishId" value={wish.id} />
           <input type="hidden" name="listId" value={listId} />
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">類別</label>
-            <select name="category" defaultValue={wish.category} className="w-full p-2 border rounded-md dark:bg-gray-800 text-sm">
-              {categoryOptions.map(cat => <option key={cat} value={cat.trim()}>{cat.trim()}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            {/* 👇 新增：所屬清單 Dropdown 👇 */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">所屬清單</label>
+              <select name="newListId" defaultValue={listId} className="w-full p-2 border rounded-md dark:bg-gray-800 text-sm font-bold text-blue-600 dark:text-blue-400">
+                {allUserLists.map(list => (
+                  <option key={list.id} value={list.id}>{list.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">類別</label>
+              <select name="category" defaultValue={wish.category} className="w-full p-2 border rounded-md dark:bg-gray-800 text-sm">
+                {categoryOptions.map(cat => <option key={cat} value={cat.trim()}>{cat.trim()}</option>)}
+              </select>
+            </div>
           </div>
 
           <div>

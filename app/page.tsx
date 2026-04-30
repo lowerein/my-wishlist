@@ -10,7 +10,7 @@ import {
   updateSystemConfig,
   toggleUserAccess,
   toggleAdminStatus,
-  deleteList,
+  deleteList, leaveList
 } from "./actions";
 
 import DeleteConfirmButton from "./components/DeleteConfirmButton";
@@ -192,16 +192,27 @@ export default async function Dashboard() {
               </Link>
 
               {/* 2. 刪除掣 (放置於右下角) */}
-              {list.ownerId === session.user.id && (
-                <div className="absolute bottom-5 right-5 z-10">
-                  <form action={deleteList.bind(null, list.id)}>
-                    <DeleteConfirmButton
-                      label="🗑️ 刪除"
-                      className="text-xs text-gray-400 hover:text-red-600 bg-white/50 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
-                    />
-                  </form>
-                </div>
+<div className="absolute bottom-5 right-5 z-10">
+              {list.ownerId === session.user.id ? (
+                // Owner 見到刪除掣
+                <form action={deleteList.bind(null, list.id)}>
+                  <DeleteConfirmButton 
+                    label="🗑️ 刪除" 
+                    confirmMessage="確定要永久刪除此清單及其所有內容嗎？"
+                    className="text-xs text-gray-400 hover:text-red-600 bg-white/50 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
+                  />
+                </form>
+              ) : (
+                // 成員/Admin 見到離開掣
+                <form action={leaveList.bind(null, list.id)}>
+                  <DeleteConfirmButton 
+                    label="🚪 離開" 
+                    confirmMessage="確定要離開此共享清單嗎？離開後你將無法再看到裡面的內容。"
+                    className="text-xs text-gray-400 hover:text-orange-600 bg-white/50 dark:bg-gray-900/50 hover:bg-orange-50 dark:hover:bg-orange-900/30 px-3 py-1.5 rounded-md transition-all duration-300 backdrop-blur-sm"
+                  />
+                </form>
               )}
+            </div>
             </div>
           ))}
         </div>

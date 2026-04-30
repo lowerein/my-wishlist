@@ -72,25 +72,45 @@ export async function deleteWish(id: string) {
   revalidatePath("/");
 }
 
-export async function updateWish(formData: FormData) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("未登入");
+// app/actions.ts
 
-  const wishId = formData.get("wishId") as string;
-  const listId = formData.get("listId") as string;
-  const description = formData.get("description") as string;
-  const notes = formData.get("notes") as string;
-  const category = formData.get("category") as string;
-  const link = formData.get("link") as string;
-  const isPrivate = formData.get("isPrivate") === "on";
+export async function updateWish(formData: FormData) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const wishId = formData.get('wishId') as string
+  const currentListId = formData.get('listId') as string
+  const newListId = formData.get('newListId') as string // <--- 新增：接收目標 List ID
+  
+  const description = formData.get('description') as string
+  const notes = formData.get('notes') as string
+  const category = formData.get('category') as string
+  const link = formData.get('link') as string
+  const isPrivate = formData.get('isPrivate') === 'on'
 
   // 1. 保安檢查：確保係本人嘅 Item
-  const wish = await prisma.wish.findUnique({ where: { id: wishId } });
+  const wish = await prisma.wish.findUnique({ where: { id: wishId } })
   if (!wish || wish.userId !== session.user.id) {
-    throw new Error("權限不足，你只能編輯自己建立的項目");
+    throw new Error("權限不足，你只能編輯自己建立的項目")
   }
 
-  // 2. 執行更新
+  // 2. 如果選擇咗搬去另一個 List，要檢查目標 List 嘅權限
+  if (newListId && newListId !== currentListId) {
+    const targetList = await prisma.list.findUnique({
+      where: { id: newListId },
+      include: { members: true, admins: true }
+    })
+    
+    const isOwner = targetList?.ownerId === session.user.id
+    const isMember = targetList?.members.some(m => m.id === session.user.id)
+    const isAdmin = targetList?.admins.some(a => a.id === session.user.id)
+    
+    if (!isOwner && !isMember && !isAdmin) {
+      throw new Error("無權限將項目加入該目標清單")
+    }
+  }
+
+  // 3. 執行更新 (包括更新 listId)
   await prisma.wish.update({
     where: { id: wishId },
     data: {
@@ -99,10 +119,15 @@ export async function updateWish(formData: FormData) {
       category,
       link,
       isPrivate,
-    },
-  });
+      listId: newListId || currentListId // 如果有揀新 List 就轉過去
+    }
+  })
 
-  revalidatePath(`/list/${listId}`);
+  // 4. 刷新頁面 (如果搬咗位，新舊 List 都要刷新)
+  revalidatePath(`/list/${currentListId}`)
+  if (newListId && newListId !== currentListId) {
+    revalidatePath(`/list/${newListId}`)
+  }
 }
 
 // 3. 打卡 (標記為已去)
@@ -360,4 +385,38 @@ export async function deleteList(listId: string) {
   // 4. 刷新並導向
   revalidatePath("/");
   redirect("/"); // 刪除後自動返大廳
+}
+
+// app/actions.ts
+// 確保最頂有 import { redirect } from 'next/navigation'
+
+export async function leaveList(listId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("未登入")
+
+  const userId = session.user.id
+
+  // 1. 檢查清單是否存在及身分
+  const list = await prisma.list.findUnique({
+    where: { id: listId },
+    select: { ownerId: true }
+  })
+
+  if (!list) return
+  if (list.ownerId === userId) {
+    throw new Error("擁有者不能離開清單，只能選擇刪除清單")
+  }
+
+  // 2. 移除成員及管理員身分 (安全起見兩邊都 Disconnect)
+  await prisma.list.update({
+    where: { id: listId },
+    data: {
+      members: { disconnect: { id: userId } },
+      admins: { disconnect: { id: userId } }
+    }
+  })
+
+  // 3. 重新整理快取並飛返大廳
+  revalidatePath('/')
+  redirect('/') 
 }
