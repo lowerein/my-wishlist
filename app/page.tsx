@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import CreateListToggle from "./components/CreateListToggle";
 import DeleteConfirmButton from "./components/DeleteConfirmButton";
+import CinnamorollSurprise from './components/CinnamorollSurprise'
 
 // 動態生成大廳頁面嘅瀏覽器標題 (Browser Tab)
 export async function generateMetadata() {
@@ -139,7 +140,11 @@ export default async function Dashboard() {
       {/* ========================================= */}
       <div className="mb-16">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 px-2 gap-4">
-          <h1 className="text-3xl font-extrabold">我的 Wishlists 🗂️</h1>
+<div className="flex items-center gap-4">
+            <h1 className="text-3xl font-extrabold">我的 Wishlists 🗂️</h1>
+            {/* 👇 放喺標題側邊嘅彩蛋掣 👇 */}
+            <CinnamorollSurprise />
+          </div>
           <CreateListToggle />
         </div>
 
