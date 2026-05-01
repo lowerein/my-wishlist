@@ -1,35 +1,35 @@
 // app/components/CinnamorollSurprise.tsx
-'use client'
-import { useState, useEffect } from 'react'
+"use client";
+import { useState, useEffect } from "react";
 
 export default function CinnamorollSurprise() {
-  const [isRunning, setIsRunning] = useState(false)
+  const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
     if (isRunning) {
       // 因為加咗飄浮，可以畀佢飛耐少少，改做 8 秒
-      const timer = setTimeout(() => setIsRunning(false), 8000)
-      return () => clearTimeout(timer)
+      const timer = setTimeout(() => setIsRunning(false), 8000);
+      return () => clearTimeout(timer);
     }
-  }, [isRunning])
+  }, [isRunning]);
 
   // 隨機生成 20 隻玉桂狗嘅參數
   const dogs = Array.from({ length: 20 }).map((_, i) => ({
     id: i,
-    top: Math.random() * 80 + 5 + '%', // 隨機高度 (5% - 85%)
-    runDuration: Math.random() * 4 + 4 + 's', // 飛過畫面嘅時間 (4 - 8秒，慢少少睇得清楚啲)
-    delay: Math.random() * 3 + 's', // 延遲起步時間
-    size: Math.random() * 60 + 80 + 'px', // 隨機大細 (80px - 140px，因為坐雲可以大隻啲)
-    floatDuration: Math.random() * 1 + 1.5 + 's', // 上下飄浮嘅速度 (1.5 - 2.5秒)
-  }))
+    top: Math.random() * 80 + 5 + "%", // 隨機高度 (5% - 85%)
+    runDuration: Math.random() * 4 + 4 + "s", // 飛過畫面嘅時間 (4 - 8秒，慢少少睇得清楚啲)
+    delay: Math.random() * 3 + "s", // 延遲起步時間
+    size: Math.random() * 60 + 80 + "px", // 隨機大細 (80px - 140px，因為坐雲可以大隻啲)
+    floatDuration: Math.random() * 1 + 1.5 + "s", // 上下飄浮嘅速度 (1.5 - 2.5秒)
+  }));
 
   return (
     <>
-      <button 
+      <button
         onClick={() => setIsRunning(true)}
-        className="bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 px-4 py-2 rounded-full font-bold text-sm transition shadow-sm border border-blue-200 dark:border-blue-800"
+        className="w-full flex justify-center items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl font-bold text-[13px] sm:text-sm transition shadow-sm shadow-blue-500/30 whitespace-nowrap shrink-0"
       >
-        ☁️ 召喚玉桂狗
+        <span className="text-base leading-none">☁️</span> 召喚玉桂狗
       </button>
 
       {isRunning && (
@@ -41,7 +41,7 @@ export default function CinnamorollSurprise() {
               className="absolute dog-run"
               style={{
                 top: dog.top,
-                left: '-200px',
+                left: "-200px",
                 animationDuration: dog.runDuration,
                 animationDelay: dog.delay,
               }}
@@ -53,14 +53,16 @@ export default function CinnamorollSurprise() {
                 className="dog-float"
                 style={{
                   width: dog.size,
-                  height: 'auto',
+                  height: "auto",
                   animationDuration: dog.floatDuration,
                 }}
               />
             </div>
           ))}
-          
-          <style dangerouslySetInnerHTML={{__html: `
+
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
             /* 由左飛到右嘅動畫 */
             @keyframes runAcrossScreen {
               0% { transform: translateX(0); }
@@ -82,9 +84,11 @@ export default function CinnamorollSurprise() {
               animation-timing-function: ease-in-out;
               animation-iteration-count: infinite;
             }
-          `}} />
+          `,
+            }}
+          />
         </div>
       )}
     </>
-  )
+  );
 }

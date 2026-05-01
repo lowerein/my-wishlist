@@ -15,7 +15,7 @@ import {
 } from "./actions";
 import CreateListToggle from "./components/CreateListToggle";
 import DeleteConfirmButton from "./components/DeleteConfirmButton";
-import CinnamorollSurprise from './components/CinnamorollSurprise'
+import CinnamorollSurprise from "./components/CinnamorollSurprise";
 
 // 動態生成大廳頁面嘅瀏覽器標題 (Browser Tab)
 export async function generateMetadata() {
@@ -140,12 +140,23 @@ export default async function Dashboard() {
       {/* ========================================= */}
       <div className="mb-16">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 px-2 gap-4">
-<div className="flex items-center gap-4">
-            <h1 className="text-3xl font-extrabold">我的 Wishlists 🗂️</h1>
-            {/* 👇 放喺標題側邊嘅彩蛋掣 👇 */}
-            <CinnamorollSurprise />
+          {/* 大標題 */}
+          <h1 className="text-2xl sm:text-3xl font-extrabold">
+            🗂️ 我的 Wishlists
+          </h1>
+
+          {/* 👇 按鈕區：手機版左右平排(w-full)，電腦版靠右對齊(sm:w-auto) 👇 */}
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* 玉桂狗掣：霸佔一半空間 */}
+            <div className="w-1/2 sm:w-auto">
+              <CinnamorollSurprise />
+            </div>
+
+            {/* 建立新清單掣：霸佔另一半空間 */}
+            <div className="w-1/2 sm:w-auto">
+              <CreateListToggle />
+            </div>
           </div>
-          <CreateListToggle />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

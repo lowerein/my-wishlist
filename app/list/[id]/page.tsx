@@ -107,7 +107,7 @@ export default async function ListPage({
     new Map(rawUserLists.map((l) => [l.id, l])).values(),
   );
 
-  // 👇 新增呢三行計算目前 User 權限 👇
+  // 👇 計算目前 User 權限 👇
   const isOwner = currentList.ownerId === session.user.id;
   const isListAdmin = currentList.admins.some((a) => a.id === session.user.id);
   const hasAdminAccess = isOwner || isListAdmin;
@@ -196,7 +196,6 @@ export default async function ListPage({
               </p>
             </div>
 
-            {/* 👇 離開清單掣移咗嚟呢度，縮細少少做 Tag 嘅大細 👇 */}
             {!isOwner && (
               <form action={leaveList.bind(null, listId)}>
                 <DeleteConfirmButton
@@ -252,7 +251,6 @@ export default async function ListPage({
           </summary>
 
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-8">
-            {/* 部分 A：基本資料修改 (加回清單描述) */}
             <form action={updateListSettings} className="space-y-4">
               <input type="hidden" name="listId" value={listId} />
 
@@ -281,7 +279,6 @@ export default async function ListPage({
                 </div>
               </div>
 
-              {/* 👇 加返呢個描述欄位 👇 */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                   清單描述
@@ -302,15 +299,12 @@ export default async function ListPage({
               </button>
             </form>
 
-            {/* 部分 B：成員權限管理 */}
             <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
               <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
                 👥 成員權限管理
               </h3>
 
-              {/* 邀請新成員 Form */}
               <form action={addMemberByEmail} className="flex gap-2 mb-6">
-                {/* 👇 加入隱藏嘅 listId 傳畀 Server 👇 */}
                 <input type="hidden" name="listId" value={listId} />
                 <input
                   name="email"
@@ -327,13 +321,11 @@ export default async function ListPage({
                 </button>
               </form>
 
-              {/* 成員列表 */}
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase">
                   現有成員：
                 </p>
 
-                {/* 顯示 Owner */}
                 <div className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
                   <div className="flex items-center gap-2">
                     {currentList.owner.image && (
@@ -351,7 +343,6 @@ export default async function ListPage({
                   </div>
                 </div>
 
-                {/* 顯示 Members */}
                 {currentList.members.map((member) => {
                   const isThisMemberAdmin = currentList.admins.some(
                     (a) => a.id === member.id,
@@ -371,7 +362,6 @@ export default async function ListPage({
                         <span className="text-sm font-medium">
                           {member.name}
                         </span>
-                        {/* 顯示 Admin Badge */}
                         {isThisMemberAdmin && (
                           <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
                             管理員
@@ -379,7 +369,6 @@ export default async function ListPage({
                         )}
                       </div>
 
-                      {/* 操作區 */}
                       <div className="flex items-center gap-3">
                         <form
                           action={toggleListAdmin.bind(null, listId, member.id)}
@@ -402,7 +391,6 @@ export default async function ListPage({
               </div>
             </div>
 
-            {/* 👇 修正後嘅危險區域 👇 */}
             <div className="pt-6 border-t border-red-100 dark:border-red-900/30">
               <h3 className="text-sm font-bold text-red-600 mb-2">
                 ⚠️ 危險區域
@@ -586,14 +574,15 @@ export default async function ListPage({
         </p>
       </div>
 
-      {/* 列表渲染 */}
+      {/* 👇 優化後嘅列表渲染區塊 👇 */}
       <div className="space-y-4">
         {wishes.map((wish) => (
           <div
             key={wish.id}
             className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between gap-4 border border-gray-100 dark:border-gray-800"
           >
-            <div className="flex-1">
+            {/* ================= 左側：所有內容 ================= */}
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                   {wish.category}
@@ -614,14 +603,11 @@ export default async function ListPage({
                   <span className="text-[10px]">{wish.user?.name} 提供</span>
                 </div>
               </div>
-              <h3
-                className={`text-lg font-bold ${wish.isVisited ? "text-gray-400 line-through" : ""}`}
-              >
+              
+              <h3 className={`text-lg font-bold ${wish.isVisited ? "text-gray-400 line-through" : ""}`}>
                 {wish.description}{" "}
                 {wish.isVisited && (
-                  <span className="ml-1 text-green-500 no-underline inline-block">
-                    ✅
-                  </span>
+                  <span className="ml-1 text-green-500 no-underline inline-block">✅</span>
                 )}
               </h3>
 
@@ -638,19 +624,61 @@ export default async function ListPage({
                   rel="noopener noreferrer"
                   className="text-blue-500 text-xs hover:underline mt-1 inline-block"
                 >
-                  查看連結
+                  🔗 查看連結
                 </a>
               )}
+
+              {/* 評分及評語區塊 */}
               {wish.isVisited && (
-                <div className="mt-3">
-                  <StarRating
-                    wishId={wish.id}
-                    ratings={wish.ratings}
-                    currentUserId={session.user.id}
-                  />
+                <div className="mt-4 mb-2 bg-gray-50/50 dark:bg-gray-800/30 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                  {/* 1. 互動評分 */}
+                  <div className="mb-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">你的評分</p>
+                    <StarRating
+                      wishId={wish.id}
+                      ratings={wish.ratings}
+                      currentUserId={session.user.id}
+                    />
+                  </div>
+                  
+                  {/* 2. 顯示其他人嘅評價 */}
+                  {wish.ratings && wish.ratings.length > 0 && (
+                    <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">大家嘅評價</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {wish.ratings.map(rating => (
+                          <div key={rating.id} className="flex gap-3 items-start bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-50 dark:border-gray-800">
+                            {rating.user?.image ? (
+                              <img src={rating.user.image} alt="avatar" className="w-6 h-6 rounded-full" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-[10px]">👤</div>
+                            )}
+                            <div className="flex-1">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                                  {rating.user?.name || "匿名用戶"}
+                                </span>
+                                <span className="text-[10px] bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 px-2 py-0.5 rounded-full font-bold">
+                                  {rating.score} ⭐
+                                </span>
+                              </div>
+                              {rating.comment ? (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                                  {rating.comment}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] italic text-gray-400">只給了評分</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              <p className="text-[10px] text-gray-400 mt-2">
+
+              <p className="text-[10px] text-gray-400 mt-3">
                 加入日期:{" "}
                 {wish.createdAt.toLocaleString("zh-HK", {
                   timeZone: "Asia/Hong_Kong",
@@ -664,40 +692,49 @@ export default async function ListPage({
               </p>
             </div>
 
-            <div className="flex sm:flex-col gap-2 justify-end">
+            {/* ================= 右側：操作按鈕區 ================= */}
+            <div className="flex flex-col gap-2 shrink-0 sm:w-32 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-800">
+              
+              {/* 1. 狀態切換掣 */}
               {wish.isVisited ? (
-                <form action={unmarkAsVisited.bind(null, wish.id)}>
-                  <button className="w-full text-[12px] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded-md border border-orange-100 dark:border-orange-900/50 transition hover:bg-orange-100">
+                <form action={unmarkAsVisited.bind(null, wish.id)} className="w-full">
+                  <button className="w-full text-[12px] font-bold text-gray-600 bg-gray-100 dark:bg-gray-800/50 dark:text-gray-400 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200">
                     🔙 取消做咗
                   </button>
                 </form>
               ) : (
-                <form action={markAsVisited.bind(null, wish.id)}>
-                  <button className="w-full text-[12px] font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md border border-green-100 dark:border-green-900/50 transition hover:bg-green-100">
-                    ✅做咗啦！
+                <form action={markAsVisited.bind(null, wish.id)} className="w-full">
+                  <button className="w-full text-[12px] font-bold text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 px-3 py-2 rounded-md border border-green-200 dark:border-green-900/50 transition hover:bg-green-100">
+                    ✅ 做咗啦！
                   </button>
                 </form>
               )}
+
+              {/* 2. 編輯及刪除掣 */}
               {wish.userId === session.user.id && (
-                <div className="flex sm:flex-col gap-2">
-                  <EditWishForm
-                    wish={wish}
-                    listId={listId}
-                    categoryOptions={categoryOptions}
-                    allUserLists={allUserLists} // <--- 加入呢行
-                  />
+                <div className="grid grid-cols-2 sm:grid-cols-1 gap-2 w-full">
+                  <div className="w-full">
+                    <EditWishForm
+                      wish={wish}
+                      listId={listId}
+                      categoryOptions={categoryOptions}
+                      allUserLists={allUserLists} 
+                    />
+                  </div>
        
-                  <form action={deleteWish.bind(null, wish.id)}>
+                  <form action={deleteWish.bind(null, wish.id)} className="w-full">
                     <DeleteConfirmButton
                       label="🗑️ 刪除"
-                      className="w-full text-[12px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-900/40 px-3 py-2 rounded-md transition"
+                      className="w-full h-full flex items-center justify-center text-[12px] font-bold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-900/40 px-3 py-2 rounded-md transition"
                     />
                   </form>
                 </div>
               )}
             </div>
+            
           </div>
         ))}
+        
         {wishes.length === 0 && (
           <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
             <p className="text-gray-500 dark:text-gray-400">
