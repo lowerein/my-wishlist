@@ -443,7 +443,7 @@ export default async function ListPage({
               name="description"
               className="p-2 border border-gray-200 dark:border-gray-700 rounded-md w-full bg-white dark:bg-gray-800 dark:text-white"
               required
-              placeholder="想去邊度？"
+              placeholder="想做咩？"
             />
           </div>
 
@@ -668,13 +668,13 @@ export default async function ListPage({
               {wish.isVisited ? (
                 <form action={unmarkAsVisited.bind(null, wish.id)}>
                   <button className="w-full text-[12px] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded-md border border-orange-100 dark:border-orange-900/50 transition hover:bg-orange-100">
-                    重設未去
+                    🔙 取消做咗
                   </button>
                 </form>
               ) : (
                 <form action={markAsVisited.bind(null, wish.id)}>
                   <button className="w-full text-[12px] font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md border border-green-100 dark:border-green-900/50 transition hover:bg-green-100">
-                    去咗啦！
+                    ✅做咗啦！
                   </button>
                 </form>
               )}
@@ -686,15 +686,10 @@ export default async function ListPage({
                     categoryOptions={categoryOptions}
                     allUserLists={allUserLists} // <--- 加入呢行
                   />
-
-                  <form action={togglePrivacy.bind(null, wish.id)}>
-                    <button className="w-full text-[12px] bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 transition hover:bg-gray-200">
-                      {wish.isPrivate ? "🔓 公開" : "🔒 私人"}
-                    </button>
-                  </form>
+       
                   <form action={deleteWish.bind(null, wish.id)}>
                     <DeleteConfirmButton
-                      label="Delete"
+                      label="🗑️ 刪除"
                       className="w-full text-[12px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-900/40 px-3 py-2 rounded-md transition"
                     />
                   </form>
